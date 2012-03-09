@@ -123,7 +123,14 @@
 			isa = PBXProject;
 			buildConfigurationList = A41834FC0A253C2900870CCB /* Build configuration list for PBXProject "QuartzComposerPlayer" */;
 			compatibilityVersion = "Xcode 2.4";
+			developmentRegion = English;
 			hasScannedForEncodings = 1;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
 			mainGroup = 29B97314FDCFA39411CA2CEA /* QuartzComposerPlayer */;
 			projectDirPath = "";
 			projectRoot = "";
