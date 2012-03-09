@@ -51,14 +51,20 @@
 #define kRendererEventMask (NSLeftMouseDownMask | NSLeftMouseDraggedMask | NSLeftMouseUpMask | NSRightMouseDownMask | NSRightMouseDraggedMask | NSRightMouseUpMask | NSOtherMouseDownMask | NSOtherMouseUpMask | NSOtherMouseDraggedMask | NSKeyDownMask | NSKeyUpMask | NSFlagsChangedMask | NSScrollWheelMask | NSTabletPointMask | NSTabletProximityMask)
 #define kRendererFPS 60.0
 
+@interface QCPatch
+	+ (void)loadPlugInsInFolder:(NSString *)pluginFolder;
+@end
+
 @interface PlayerApplication : NSApplication <NSApplicationDelegate>
 {
 	NSOpenGLContext*			_openGLContext;
 	QCRenderer*					_renderer;
+	CGDirectDisplayID			_display;	
 	NSString*					_filePath;
 	NSTimer*					_renderTimer;
 	NSTimeInterval				_startTime;
 	NSSize						_screenSize;
+	NSPoint						_mouseLocation;
 }
 @end
 
@@ -69,6 +75,24 @@
 	//We need to be our own delegate
 	if(self = [super init])
 	[self setDelegate:self];
+	
+	// Load "skanky" plugins in our bundle's resource folder
+	[QCPatch loadPlugInsInFolder: [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"Patches"] ];
+
+	// List and load official api plugins in our bundle's resource folder
+	NSString *pluginsDir = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"PlugIns"];
+	NSFileManager *localFileManager = [[NSFileManager alloc] init];
+	NSDirectoryEnumerator *dirEnum = [localFileManager enumeratorAtPath:pluginsDir];
+	
+	NSString *file;
+	while (file = [dirEnum nextObject]) {
+		if ([[file pathExtension] isEqualToString: @"plugin"]) {
+			// load the document
+			[QCPlugIn loadPlugInAtPath: [pluginsDir stringByAppendingPathComponent:file] ];
+			NSLog(@"Loading PlugIn `%@`", file );
+		}
+	}
+	[localFileManager release];
 	
 	return self;
 }
@@ -93,10 +117,29 @@
 														NSOpenGLPFADepthSize, 24,
 														(NSOpenGLPixelFormatAttribute) 0
 													};
-	NSOpenGLPixelFormat*			format = [[[NSOpenGLPixelFormat alloc] initWithAttributes:attributes] autorelease];
+	NSOpenGLPixelFormat*			format;
 	NSOpenPanel*					openPanel;
+	int								displayNr;
+	CGDirectDisplayID				*activeDisplays = nil;
+	CGDisplayCount					displayCount = 0;
 	
-	//If no composition file was dropped on the application's icon, we need to ask the user for one
+	// See if a Composition path is specified in Info.plist, and make sure it is an absolute path or a path to a resource
+	_filePath = [[[[NSBundle mainBundle] objectForInfoDictionaryKey:@"Composition"] stringByExpandingTildeInPath] retain];
+	if(_filePath != nil) {
+		if([[NSBundle mainBundle] pathForResource:_filePath ofType:@""] != nil)
+			_filePath = [[[NSBundle mainBundle] pathForResource:_filePath ofType:@""] retain];
+		else {
+			if(![_filePath isAbsolutePath]) 
+				_filePath = [[ [[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent] stringByAppendingPathComponent:_filePath] retain];
+			
+			if(![[NSFileManager defaultManager] fileExistsAtPath:_filePath]) {
+				NSLog(@"Specified file not found: %@", _filePath);
+				_filePath = nil;
+			}
+		}		
+	}
+	
+	// If no composition file was dropped on the application's icon or specified in Info.plist, we need to ask the user for one
 	if(_filePath == nil) {
 		openPanel = [NSOpenPanel openPanel];
 		[openPanel setAllowsMultipleSelection:NO];
@@ -108,14 +151,42 @@
 		}
 		_filePath = [[openPanel filename] retain];
 	}
+
+	// See if a display was specified in Info.plist
+	_display = kCGDirectMainDisplay;
+
+	displayNr = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"Display Nr"] intValue];
+	if(displayNr != 0) {
+		// First count the nr of active displays
+		CGGetActiveDisplayList(0, NULL, &displayCount);	
+		
+		if(displayNr>=displayCount) {
+			NSLog(@"Cannot get display nr %d", displayNr);
+		} else {
+			// Allocate enough memory to hold all the display IDs we have
+			activeDisplays = calloc((size_t)displayCount, sizeof(CGDirectDisplayID));
+			
+			if(CGGetActiveDisplayList(displayCount, activeDisplays, &displayCount) != CGDisplayNoErr) {
+				NSLog(@"Cannot get active display list");
+				[NSApp terminate:nil];
+			}
+			
+			_display = activeDisplays[displayNr];
+			free(activeDisplays);
+		}
+	}	
 	
-	//Capture the main screen and cache its dimensions
-	CGDisplayCapture(kCGDirectMainDisplay);
-	CGDisplayHideCursor(kCGDirectMainDisplay);
-	_screenSize.width = CGDisplayPixelsWide(kCGDirectMainDisplay);
-	_screenSize.height = CGDisplayPixelsHigh(kCGDirectMainDisplay);
+	// Capture the screen and cache its dimensions
+	CGDisplayCapture(_display);
+	CGDisplayHideCursor(_display);
+	_screenSize.width = CGDisplayPixelsWide(_display);
+	_screenSize.height = CGDisplayPixelsHigh(_display);
 	
-	//Create the fullscreen OpenGL context on the main screen (double-buffered with color and depth buffers)
+	// Init the OpenGL pixel format
+	attributes[2] = CGDisplayIDToOpenGLDisplayMask(_display);
+	format = [[[NSOpenGLPixelFormat alloc] initWithAttributes:attributes] autorelease];
+	
+	// Create the fullscreen OpenGL context on the main screen (double-buffered with color and depth buffers)
 	_openGLContext = [[NSOpenGLContext alloc] initWithFormat:format shareContext:nil];
 	if(_openGLContext == nil) {
 		NSLog(@"Cannot create OpenGL context");
@@ -124,14 +195,23 @@
 	[_openGLContext setFullScreen];
 	[_openGLContext setValues:&value forParameter:kCGLCPSwapInterval];
 	
-	//Create the QuartzComposer Renderer with that OpenGL context and the specified composition file
+	// Create the QuartzComposer Renderer with that OpenGL context and the specified composition file
 	_renderer = [[QCRenderer alloc] initWithOpenGLContext:_openGLContext pixelFormat:format file:_filePath];
 	if(_renderer == nil) {
 		NSLog(@"Cannot create QCRenderer");
 		[NSApp terminate:nil];
 	}
 	
-	//Create a timer which will regularly call our rendering method
+	// See if any of the published inputs are set in Info.plist
+	for(NSString *keyName in [_renderer inputKeys]) {
+		NSString *keyValue = [[NSBundle mainBundle] objectForInfoDictionaryKey:keyName];
+		if(keyValue != nil) {
+			NSLog(@"Setting key `%@` to `%@`", keyName, keyValue );
+			[_renderer setValue:keyValue forInputKey:keyName];
+		}
+	}
+	
+	// Create a timer which will regularly call our rendering method
 	_renderTimer = [[NSTimer scheduledTimerWithTimeInterval:(1.0 / (NSTimeInterval)kRendererFPS) target:self selector:@selector(_render:) userInfo:nil repeats:YES] retain];
 	if(_renderTimer == nil) {
 		NSLog(@"Cannot create NSTimer");
@@ -145,69 +225,90 @@
 	NSPoint					mouseLocation;
 	NSMutableDictionary*	arguments;
 	
-	//Let's compute our local time
+
+	// Let's compute our local time
 	if(_startTime == 0) {
 		_startTime = time;
 		time = 0;
 	}
 	else
-	time -= _startTime;
+		time -= _startTime;
 	
-	//We setup the arguments to pass to the composition (normalized mouse coordinates and an optional event)
+	// We setup the arguments to pass to the composition (normalized mouse coordinates and an optional event)
 	mouseLocation = [NSEvent mouseLocation];
 	mouseLocation.x /= _screenSize.width;
 	mouseLocation.y /= _screenSize.height;
 	arguments = [NSMutableDictionary dictionaryWithObject:[NSValue valueWithPoint:mouseLocation] forKey:QCRendererMouseLocationKey];
+	
+	if(mouseLocation.x != _mouseLocation.x || mouseLocation.y != _mouseLocation.y) {
+		if(!event){
+			// Manually create a MouseMoved event to force the Mouse patch position to update 
+			event = [NSEvent mouseEventWithType:NSMouseMoved
+					location:[NSEvent mouseLocation]
+					modifierFlags:0
+					timestamp:[NSDate timeIntervalSinceReferenceDate]
+					windowNumber:0
+					context:[NSGraphicsContext currentContext]
+					eventNumber:1
+					clickCount:1
+					pressure:0.0
+			];
+		}
+		_mouseLocation.x = mouseLocation.x;
+		_mouseLocation.y = mouseLocation.y;
+	}
+	
 	if(event)
-	[arguments setObject:event forKey:QCRendererEventKey];
+		[arguments setObject:event forKey:QCRendererEventKey];
+
 	
-	//Render a frame
+	// Render a frame
 	if(![_renderer renderAtTime:time arguments:arguments])
-	NSLog(@"Rendering failed at time %.3fs", time);
+		NSLog(@"Rendering failed at time %.3fs", time);
 	
-	//Flush the OpenGL context to display the frame on screen
+	// Flush the OpenGL context to display the frame on screen
 	[_openGLContext flushBuffer];
 }
 
 - (void) _render:(NSTimer*)timer
 {
-	//Simply call our rendering method, passing no event to the composition
+	// Simply call our rendering method, passing no event to the composition
 	[self renderWithEvent:nil];
 }
 
 - (void) sendEvent:(NSEvent*)event
 {
-	//If the user pressed the [Esc] key, we need to exit
+	// If the user pressed the [Esc] key, we need to exit
 	if(([event type] == NSKeyDown) && ([event keyCode] == 0x35))
 	[NSApp terminate:nil];
 	
-	//If the renderer is active and we have a meaningful event, render immediately passing that event to the composition
+	// If the renderer is active and we have a meaningful event, render immediately passing that event to the composition
 	if(_renderer && (NSEventMaskFromType([event type]) & kRendererEventMask))
-	[self renderWithEvent:event];
+		[self renderWithEvent:event];
 	else
-	[super sendEvent:event];
+		[super sendEvent:event];
 }
 
 - (void) applicationWillTerminate:(NSNotification*)aNotification 
 {
-	//Stop the timer
+	// Stop the timer
 	[_renderTimer invalidate];
 	[_renderTimer release];
 	
-	//Destroy the renderer
+	// Destroy the renderer
 	[_renderer release];
 	
-	//Destroy the OpenGL context
+	// Destroy the OpenGL context
 	[_openGLContext clearDrawable];
 	[_openGLContext release];
 	
-	//Release main screen
-	if(CGDisplayIsCaptured(kCGDirectMainDisplay)) {
-		CGDisplayShowCursor(kCGDirectMainDisplay);
-		CGDisplayRelease(kCGDirectMainDisplay);
+	// Release the display
+	if(CGDisplayIsCaptured(_display)) {
+		CGDisplayShowCursor(_display);
+		CGDisplayRelease(_display);
 	}
 	
-	//Release path
+	// Release path
 	[_filePath release];
 }
 
