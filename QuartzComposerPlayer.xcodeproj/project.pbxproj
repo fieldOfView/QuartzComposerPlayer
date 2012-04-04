@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		6AD9B06D150A0FE400E8F6FB /* Patches in Resources */ = {isa = PBXBuildFile; fileRef = 6AD9B06A150A0FE400E8F6FB /* Patches */; };
-		6AD9B070150A0FF300E8F6FB /* PlugIns in Resources */ = {isa = PBXBuildFile; fileRef = 6AD9B06E150A0FF300E8F6FB /* PlugIns */; };
+		6AD9B070150A0FF300E8F6FB /* Plug-Ins in Resources */ = {isa = PBXBuildFile; fileRef = 6AD9B06E150A0FF300E8F6FB /* Plug-Ins */; };
 		8D1107280486CEB800E47090 /* Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32CA4F630368D1EE00C91783 /* Prefix.pch */; };
 		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
@@ -22,7 +22,7 @@
 		29B97319FDCFA39411CA2CEA /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/MainMenu.nib; sourceTree = "<group>"; };
 		32CA4F630368D1EE00C91783 /* Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Prefix.pch; sourceTree = "<group>"; };
 		6AD9B06A150A0FE400E8F6FB /* Patches */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Patches; sourceTree = "<group>"; };
-		6AD9B06E150A0FF300E8F6FB /* PlugIns */ = {isa = PBXFileReference; lastKnownFileType = folder; path = PlugIns; sourceTree = "<group>"; };
+		6AD9B06E150A0FF300E8F6FB /* Plug-Ins */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Plug-Ins"; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* QuartzComposerPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuartzComposerPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2A07095067D7C1E00EAF32C /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = /System/Library/Frameworks/Quartz.framework; sourceTree = "<absolute>"; };
@@ -64,7 +64,7 @@
 		29B97317FDCFA39411CA2CEA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				6AD9B06E150A0FF300E8F6FB /* PlugIns */,
+				6AD9B06E150A0FF300E8F6FB /* Plug-Ins */,
 				6AD9B06A150A0FE400E8F6FB /* Patches */,
 				8D1107310486CEB800E47090 /* Info.plist */,
 				29B97318FDCFA39411CA2CEA /* MainMenu.nib */,
@@ -153,7 +153,7 @@
 			files = (
 				E2ED5ACD067D831E0057BE02 /* MainMenu.nib in Resources */,
 				6AD9B06D150A0FE400E8F6FB /* Patches in Resources */,
-				6AD9B070150A0FF300E8F6FB /* PlugIns in Resources */,
+				6AD9B070150A0FF300E8F6FB /* Plug-Ins in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

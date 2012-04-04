@@ -80,7 +80,7 @@
 	[QCPatch loadPlugInsInFolder: [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"Patches"] ];
 
 	// List and load official api plugins in our bundle's resource folder
-	NSString *pluginsDir = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"PlugIns"];
+	NSString *pluginsDir = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"Plug-Ins"];
 	NSFileManager *localFileManager = [[NSFileManager alloc] init];
 	NSDirectoryEnumerator *dirEnum = [localFileManager enumeratorAtPath:pluginsDir];
 	
